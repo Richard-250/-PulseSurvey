@@ -2,22 +2,14 @@
   "name": "fusion-starter",
   "private": true,
   "type": "module",
-  "pkg": {
-    "assets": [
-      "dist/spa/*"
-    ],
-    "scripts": [
-      "dist/server/**/*.js"
-    ]
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "npm run build:client",
-    "build:client": "vite build",
-    "test": "vitest --run",
-    "format.fix": "prettier --write .",
-    "typecheck": "tsc"
-  },
+"scripts": {
+  "dev": "vite",
+  "build": "vite build",
+  "preview": "vite preview",
+  "test": "vitest --run",
+  "format.fix": "prettier --write .",
+  "typecheck": "tsc"
+},
   "dependencies": {
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
