@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = "https://pulse-survey-backend-1.onrender.com/api";
 
 export function useWallet(enabled: boolean = true) {
   const { data, isLoading, refetch } = useQuery({
