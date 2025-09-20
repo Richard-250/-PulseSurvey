@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   MessageSquare, 
   Clock, 
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 export default function AboutSurveys() {
+    const { user } = useAuth();
   return (
     <Layout>
       {/* Hero Section */}
@@ -377,7 +379,7 @@ export default function AboutSurveys() {
             size="lg" 
             className="bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:from-amber-500/90 hover:to-amber-600/90"
           >
-            <Link to="/signup">Begin earning today</Link>
+            <Link to={user ? "/survey" : "/signup"}>Begin earning today</Link>
           </Button>
           <p className="text-xs mt-4 opacity-75">
             Daily MTN payouts • 5-question groups • Quality matters

@@ -21,8 +21,8 @@ export default function Footer() {
           <div className="font-semibold">Legal</div>
           <ul className="grid gap-1">
             <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
-            <li><Link to="/terms" className="hover:underline">Terms & Conditions</Link></li>
-            <li><Link to="/cookies" className="hover:underline">Cookie Policy</Link></li>
+            {/* <li><Link to="/terms" className="hover:underline">Terms & Conditions</Link></li> */}
+            <li><Link to="/cookies" className="hover:underline">Cookie & session Policy</Link></li>
           </ul>
         </div>
       </div>

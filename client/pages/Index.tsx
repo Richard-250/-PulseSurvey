@@ -1,5 +1,5 @@
 import Layout from "@/components/layout/Layout";
-import SurveyCard from "@/components/SurveyCard";
+// import SurveyCard from "@/components/SurveyCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,7 @@ export default function Index() {
         </div>
       </section>
 
-      <section className="mt-10">{user ? <SurveyCard /> : <HomeExplainers />}</section>
+     {/* <section className="mt-10">{user ? <SurveyCard /> : <HomeExplainers />}</section> */}
 
       {/* How to earn money section */}
       <section className="mt-12">
@@ -59,7 +59,7 @@ export default function Index() {
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="text-center p-6">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6"> 
               <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-blue-400 to-blue-600 mb-4 flex items-center justify-center">
                 <Users className="w-8 h-8 text-white" />
               </div>
@@ -270,7 +270,9 @@ export default function Index() {
           size="lg" 
           className="bg-white text-amber-600 hover:bg-gray-100"
         >
-          <Link to="/signup">Start earning now</Link>
+          <Link to={user ? "/survey" : "/signup"}>
+          Start earning now
+        </Link>
         </Button>
         <p className="text-xs mt-4 opacity-75">
           No credit card required • Free to join • Instant payouts via MTN Mobile Money

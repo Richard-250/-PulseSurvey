@@ -105,12 +105,13 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <div className="text-sm text-muted-foreground">
-            Welcome back, {user.name || user.email}
-          </div>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <div className="text-sm text-gray-600 mt-2 md:mt-0">
+                Welcome back, John Doe
+            </div>
         </div>
+
 
         {/* Stats Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -283,7 +284,7 @@ export default function Dashboard() {
               Need help? Contact our support team for assistance with your account.
             </p>
             <Button variant="outline" className="w-full">
-              Contact Support
+             <a href="/contact">Contact Support</a>  
             </Button>
           </div>
         </div>

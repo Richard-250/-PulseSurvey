@@ -1,9 +1,7 @@
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 
 type User = {
-  id: string;
   email: string;
-  password?: string; // stored in localStorage for demo (do NOT use in prod)
   display_name: string;
   country?: string;
   mtn_mobile_number?: string | null;
@@ -14,93 +12,143 @@ type User = {
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  signup: (input: { email: string; password: string; display_name: string; country?: string }) => Promise<void>;
+  signup: (input: { 
+    email: string; 
+    password: string; 
+    display_name: string; 
+    country?: string;
+    mtn_mobile_number?: string;
+  }) => Promise<void>;
   login: (input: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const LS_USERS_KEY = "ps_users"; // map email->user
-const LS_SESSION_KEY = "ps_session"; // current user email
-
-function readUsers(): Record<string, User> {
-  try {
-    const raw = localStorage.getItem(LS_USERS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function writeUsers(users: Record<string, User>) {
-  localStorage.setItem(LS_USERS_KEY, JSON.stringify(users));
-}
-
-function readSession(): string | null {
-  return localStorage.getItem(LS_SESSION_KEY);
-}
-
-function writeSession(email: string | null) {
-  if (email) localStorage.setItem(LS_SESSION_KEY, email);
-  else localStorage.removeItem(LS_SESSION_KEY);
-}
+const API_BASE_URL = "http://localhost:3000/api/auth";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check if user is authenticated on component mount
   useEffect(() => {
-    const email = readSession();
-    if (email) {
-      const users = readUsers();
-      const u = users[email.toLowerCase()];
-      if (u) setUser(u);
-    }
-    setLoading(false);
+    checkAuthStatus();
   }, []);
 
-  function refetch() {
-    const email = readSession();
-    if (email) {
-      const users = readUsers();
-      const u = users[email.toLowerCase()];
-      setUser(u ?? null);
-    } else setUser(null);
+  async function checkAuthStatus() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/me`, {
+        method: 'GET',
+        credentials: 'include', // Include session cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function signup(input: { email: string; password: string; display_name: string; country?: string }) {
-    const users = readUsers();
-    const email = input.email.toLowerCase();
-    if (users[email]) throw new Error("Email already registered");
-    const newUser: User = {
-      id: cryptoRandomId(),
-      email,
-      password: input.password,
-      display_name: input.display_name,
-      country: input.country,
-      mtn_mobile_number: null,
-      is_email_verified: true,
-      balance: 0,
-    };
-    users[email] = newUser;
-    writeUsers(users);
+  function refetch() {
+    checkAuthStatus();
+  }
+
+  async function signup(input: { 
+    email: string; 
+    password: string; 
+    display_name: string; 
+    country?: string;
+    mtn_mobile_number?: string;
+  }) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: input.email,
+          password: input.password,
+          display_name: input.display_name,
+          country: input.country || '',
+          mtn_mobile_number: input.mtn_mobile_number || '0000000000'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      setUser(data.user);
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
   }
 
   async function login(input: { email: string; password: string }) {
-    const users = readUsers();
-    const email = input.email.toLowerCase();
-    const u = users[email];
-    if (!u) throw new Error("Invalid credentials");
-    if (u.password !== input.password) throw new Error("Invalid credentials");
-    writeSession(email);
-    setUser(u);
+    try {
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: input.email,
+          password: input.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      setUser(data.user);
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   }
 
   async function logout() {
-    writeSession(null);
-    setUser(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        setUser(null);
+      } else {
+        // Even if logout fails on server, clear local user state
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Clear user state even if request fails
+      setUser(null);
+    }
   }
 
   const value = useMemo(
@@ -115,8 +163,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
-}
-
-function cryptoRandomId() {
-  return Math.random().toString(36).slice(2, 10);
 }

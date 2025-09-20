@@ -215,8 +215,8 @@ export default function FAQ() {
                   For urgent payment issues or immediate assistance
                 </p>
                 <Button variant="outline" className="bg-white" asChild>
-                  <a href="https://wa.me/250780079748" target="_blank" rel="noopener noreferrer">
-                    0780079748
+                  <a href="https://wa.me/250791762918" target="_blank" rel="noopener noreferrer">
+                    0791762918
                   </a>
                 </Button>
               </div>

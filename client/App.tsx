@@ -17,13 +17,10 @@ import Dashboard from "./pages/Dashboard";
 import  AboutUs  from "./pages/AboutUs";
 import  AboutSurveys  from "./pages/AboutSurvey";
 import  FAQ  from "./pages/FAQ";
-import {
-  
-  Privacy,
-  Terms,
-  Cookies,
-  Contact,
-} from "./pages/InfoPages";
+import Contact from "./pages/contact";
+import  Privacy from "./pages/Privacy";
+import  Terms  from "./pages/Terms";
+import Cookies  from "./pages/cookies";
 import { AuthProvider } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient();

@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Users, Target, Globe, Award, TrendingUp, Shield, Heart, Zap } from "lucide-react";
 
 export default function AboutUs() {
+   const { user } = useAuth();
   return (
     <Layout>
       {/* Hero Section */}
@@ -26,7 +28,7 @@ export default function AboutUs() {
               asChild 
               className="bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:from-amber-500/90 hover:to-amber-600/90"
             >
-              <Link to="/signup">Start earning</Link>
+              <Link to={user ? "/survey" : "/signup"}>Start earning</Link>
             </Button>
           </div>
           <div className="relative">
@@ -249,7 +251,7 @@ export default function AboutUs() {
             size="lg" 
             className="bg-white text-amber-600 hover:bg-gray-100"
           >
-            <Link to="/signup">Start earning</Link>
+            <Link to={user ? "/survey" : "/signup"}>Start earning</Link>
           </Button>
           <p className="text-xs mt-4 opacity-75">
             Free to join • No experience required • Instant MTN payouts

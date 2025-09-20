@@ -7,9 +7,11 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Edit2, Check, X, AlertCircle, Clock, CheckCircle } from "lucide-react";
 
+const API_BASE_URL = "http://localhost:3000/api";
+
 export default function Wallet() {
   const { user, refetch: refetchAuth } = useAuth();
-  const { balance, pending, transactions, settings, isLoading, refetch } = useWallet(true as any);
+  const { balance, pending, transactions, settings, isLoading, refetch } = useWallet(Boolean(user));
   const [coins, setCoins] = useState(30);
   const [mtn, setMtn] = useState("");
   const [isEditingMtn, setIsEditingMtn] = useState(false);
@@ -22,17 +24,21 @@ export default function Wallet() {
       const userMtn = user.mtn_mobile_number ?? "";
       setMtn(userMtn);
       setTempMtn(userMtn);
-      
-      // Check last withdrawal date
-      const LS_USERS_KEY = "ps_users";
-      const raw = localStorage.getItem(LS_USERS_KEY);
-      const users = raw ? JSON.parse(raw) : {};
-      const u = users[user.email.toLowerCase()];
-      if (u && u.last_withdrawal_date) {
-        setLastWithdrawal(u.last_withdrawal_date);
-      }
     }
   }, [user]);
+
+  // Get last withdrawal from transactions
+  useEffect(() => {
+    if (transactions && transactions.length > 0) {
+      const lastPayoutRequest = transactions
+        .filter((tx: any) => tx.type === 'payout_request')
+        .sort((a: any, b: any) => b.created_at - a.created_at)[0];
+      
+      if (lastPayoutRequest) {
+        setLastWithdrawal(lastPayoutRequest.created_at);
+      }
+    }
+  }, [transactions]);
 
   const canWithdrawToday = () => {
     if (!lastWithdrawal) return true;
@@ -54,15 +60,21 @@ export default function Wallet() {
     
     setLoading(true);
     try {
-      const LS_USERS_KEY = "ps_users";
-      const raw = localStorage.getItem(LS_USERS_KEY);
-      const users = raw ? JSON.parse(raw) : {};
-      const u = users[user.email.toLowerCase()];
-      if (!u) throw new Error("User not found");
-      
-      u.mtn_mobile_number = tempMtn.trim();
-      users[user.email.toLowerCase()] = u;
-      localStorage.setItem(LS_USERS_KEY, JSON.stringify(users));
+      const response = await fetch(`${API_BASE_URL}/auth/update-profile`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mtn_mobile_number: tempMtn.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update MTN number');
+      }
       
       setMtn(tempMtn.trim());
       setIsEditingMtn(false);
@@ -80,7 +92,7 @@ export default function Wallet() {
     setIsEditingMtn(false);
   }
 
-  async function withdraw() {
+  async function requestPayout() {
     if (!user) return toast.error("Please log in to request a withdrawal");
     
     // Validation checks
@@ -92,6 +104,10 @@ export default function Wallet() {
     if (coins < 30) {
       return toast.error("Minimum withdrawal amount is 30 coins");
     }
+
+    if (balance < coins) {
+      return toast.error("Insufficient balance");
+    }
     
     if (!mtn.trim()) {
       return toast.error("Please set your MTN mobile number first");
@@ -99,38 +115,29 @@ export default function Wallet() {
     
     setLoading(true);
     try {
-      const LS_USERS_KEY = "ps_users";
-      const raw = localStorage.getItem(LS_USERS_KEY);
-      const users = raw ? JSON.parse(raw) : {};
-      const u = users[user.email.toLowerCase()];
-      if (!u) throw new Error("User not found");
-      
-      if ((u.balance ?? 0) < coins) throw new Error("Insufficient balance");
-      if (coins < (settings?.min_withdraw_coins ?? 30)) {
-        throw new Error(`Minimum withdrawal is ${(settings?.min_withdraw_coins ?? 30)} coins`);
-      }
+      const response = await fetch(`${API_BASE_URL}/payout/request`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount_coins: coins,
+          mtn_number: mtn
+        }),
+      });
 
-      // Deduct balance and create pending transaction
-      u.balance = (u.balance ?? 0) - coins;
-      u.transactions = u.transactions ?? [];
-      u.last_withdrawal_date = Date.now();
-      
-      const tx = {
-        id: Math.random().toString(36).slice(2, 9),
-        type: "payout_request",
-        amount_coins: coins,
-        mtn_number: mtn,
-        status: "pending",
-        created_at: Date.now()
-      };
-      
-      u.transactions.push(tx);
-      users[user.email.toLowerCase()] = u;
-      localStorage.setItem(LS_USERS_KEY, JSON.stringify(users));
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to request payout');
+      }
       
       setLastWithdrawal(Date.now());
       setCoins(30); // Reset to minimum
-      toast.success("Withdrawal requested successfully");
+      toast.success(data.message || "Withdrawal requested successfully");
+      
+      // Refresh data
       await refetch();
       await refetchAuth();
     } catch (err: any) {
@@ -176,6 +183,25 @@ export default function Wallet() {
     });
   };
 
+  const getTransactionTypeLabel = (type: string) => {
+    switch (type) {
+      case "credit":
+        return "Survey Reward";
+      case "payout_request":
+        return "Withdrawal Request";
+      default:
+        return type.replace('_', ' ');
+    }
+  };
+
+  const getTransactionAmountColor = (type: string) => {
+    return type === 'credit' ? 'text-green-600' : 'text-red-600';
+  };
+
+  const getTransactionAmountPrefix = (type: string) => {
+    return type === 'credit' ? '+' : '-';
+  };
+
   return (
     <Layout>
       <div className="mx-auto max-w-4xl space-y-6">
@@ -199,6 +225,9 @@ export default function Wallet() {
               {isLoading ? "..." : balance ?? 0} coins
             </div>
             <div className="text-sm text-muted-foreground mt-2">
+              ≈ {((balance ?? 0) * (settings?.coin_to_currency ?? 2)).toLocaleString()} RWF
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
               Pending: <span className="font-medium text-yellow-600">{pending ?? 0} coins</span>
             </div>
           </div>
@@ -219,7 +248,7 @@ export default function Wallet() {
               )}
             </div>
             <div className="text-sm text-muted-foreground">
-              Min: 30 coins | Max: Once per day
+              Min: {settings?.min_withdraw_coins ?? 30} coins | Max: Once per day
             </div>
           </div>
         </div>
@@ -247,7 +276,7 @@ export default function Wallet() {
                 <Input
                   value={tempMtn}
                   onChange={(e) => setTempMtn(e.target.value)}
-                  placeholder="Enter MTN mobile number"
+                  placeholder="Enter MTN mobile number (e.g., +250788123456)"
                   className="flex-1"
                 />
                 <Button
@@ -275,6 +304,9 @@ export default function Wallet() {
                 {mtn || "No number set"}
               </div>
             )}
+            <div className="text-sm text-muted-foreground">
+              This number will be used for mobile money transfers when you request withdrawals.
+            </div>
           </div>
         </div>
 
@@ -287,13 +319,15 @@ export default function Wallet() {
               <Input
                 type="number"
                 value={coins}
-                onChange={(e) => setCoins(Math.max(30, Number(e.target.value)))}
-                min={30}
+                onChange={(e) => setCoins(Math.max(settings?.min_withdraw_coins ?? 30, Number(e.target.value)))}
+                min={settings?.min_withdraw_coins ?? 30}
                 max={balance ?? 0}
                 className="text-lg"
               />
               <div className="text-sm text-muted-foreground mt-1">
-                Minimum: 30 coins • Maximum: {balance ?? 0} coins
+                Minimum: {settings?.min_withdraw_coins ?? 30} coins • Maximum: {balance ?? 0} coins
+                <br />
+                ≈ {(coins * (settings?.coin_to_currency ?? 2)).toLocaleString()} RWF will be sent to your MTN number
               </div>
             </div>
             
@@ -309,11 +343,11 @@ export default function Wallet() {
             )}
             
             <Button
-              onClick={withdraw}
-              disabled={loading || !canWithdrawToday() || !mtn.trim() || coins < 30}
+              onClick={requestPayout}
+              disabled={loading || !canWithdrawToday() || !mtn.trim() || coins < (settings?.min_withdraw_coins ?? 30) || (balance ?? 0) < coins}
               className="w-full text-lg h-12"
             >
-              {loading ? "Processing..." : `Request Payout (${coins} coins)`}
+              {loading ? "Processing..." : `Request Payout (${coins} coins → ${(coins * (settings?.coin_to_currency ?? 2)).toLocaleString()} RWF)`}
             </Button>
           </div>
         </div>
@@ -324,7 +358,7 @@ export default function Wallet() {
           <div className="space-y-3">
             {(transactions ?? []).length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No transactions yet
+                No transactions yet. Complete surveys to start earning!
               </div>
             ) : (
               (transactions ?? []).map((t: any) => (
@@ -335,23 +369,28 @@ export default function Wallet() {
                   <div className="flex items-center gap-3">
                     {getTransactionStatusIcon(t.status)}
                     <div>
-                      <div className="font-medium capitalize">
-                        {t.type.replace('_', ' ')}
+                      <div className="font-medium">
+                        {getTransactionTypeLabel(t.type)}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {formatDate(t.created_at)} • {getTransactionStatusText(t.status)}
                       </div>
                       {t.mtn_number && (
                         <div className="text-xs text-muted-foreground font-mono">
-                          {t.mtn_number}
+                          To: {t.mtn_number}
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-lg">
-                      {t.amount_coins} coins
+                    <div className={`font-semibold text-lg ${getTransactionAmountColor(t.type)}`}>
+                      {getTransactionAmountPrefix(t.type)}{t.amount_coins} coins
                     </div>
+                    {t.type === 'payout_request' && (
+                      <div className="text-sm text-muted-foreground">
+                        {(t.amount_coins * (settings?.coin_to_currency ?? 2)).toLocaleString()} RWF
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

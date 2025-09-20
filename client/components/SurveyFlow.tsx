@@ -5,16 +5,22 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 
 type Question = {
+  _id: string;
   id: string;
   text: string;
   choices: string[];
-  explanation: string[];
+  createdAt?: string;
 };
 
 type QuestionSet = {
-  id: string;
   questions: Question[];
-  createdAt: number;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalQuestions: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 };
 
 type QuestionTiming = {
@@ -30,208 +36,63 @@ type AnswerSubmission = {
   answeredAt: number;
 };
 
-// Demo questions for localStorage (will be replaced with API calls later)
-const DEMO_QUESTIONS: Question[] = [
-  {
-    id: "q1",
-    text: "How many minutes do you typically spend commuting each weekday?",
-    choices: ["Less than 15", "15–30", "30–60", "More than 60"],
-    explanation: [
-      "We ask this because commute time affects quality of life and informs infrastructure planning.",
-      "Aggregated commute data helps public transport authorities schedule routes and allocate resources.",
-      "Short commute patterns can indicate where micro-mobility solutions are most effective.",
-      "Your anonymized response is combined with others to produce actionable insights for planners.",
-    ],
-  },
-  {
-    id: "q2",
-    text: "Which grocery item have you noticed has increased most in price recently?",
-    choices: ["Bread & staples", "Vegetables & fruits", "Cooking oil", "Dairy & eggs"],
-    explanation: [
-      "Price changes indicate inflation pressure in specific categories.",
-      "Retailers and regulators use category-level trends to target interventions.",
-      "Your response helps brands decide which products need discounts or supply adjustments.",
-      "Only aggregated patterns are shared; personal data is never revealed.",
-    ],
-  },
-  {
-    id: "q3",
-    text: "How reliable is your mobile network during peak evening hours?",
-    choices: ["Very reliable", "Mostly reliable", "Occasionally drops", "Often unavailable"],
-    explanation: [
-      "Network reliability is critical for emergency services and businesses.",
-      "Telecom operators rely on coverage feedback to plan capacity upgrades.",
-      "This data helps prioritize neighborhoods that need infrastructure investment.",
-      "Responses are used in aggregate to improve service levels across regions.",
-    ],
-  },
-  {
-    id: "q4",
-    text: "Do you prefer mobile money or cash for small purchases under 5,000 RWF?",
-    choices: ["Mobile money", "Cash", "Depends on merchant", "No preference"],
-    explanation: [
-      "Understanding payment preferences helps merchants choose payment terminals.",
-      "Fintech companies use this to improve checkout flows and adoption incentives.",
-      "Insights guide where to promote mobile money education and merchant onboarding.",
-      "Your aggregated answer supports better payment experiences for everyone.",
-    ],
-  },
-  {
-    id: "q5",
-    text: "How many hours of uninterrupted electricity did you have yesterday?",
-    choices: ["0–4", "5–8", "9–16", "More than 16"],
-    explanation: [
-      "Electricity reliability impacts productivity and household wellbeing.",
-      "Utilities use outage duration data to schedule maintenance and invest in resilience.",
-      "This helps prioritize regions for backup power and capacity expansion.",
-      "Your responses are aggregated and never tied to your identity.",
-    ],
-  },
-  {
-    id: "q6",
-    text: "How often do you shop using online delivery services in a month?",
-    choices: ["Never", "1–3 times", "4–8 times", "More than 8"],
-    explanation: [
-      "E-commerce demand signals help improve delivery logistics.",
-      "Frequency data assists companies in optimizing coverage and pricing.",
-      "Understanding usage patterns helps tailor promotions and services.",
-      "Responses are used only in aggregate to inform business decisions.",
-    ],
-  },
-  {
-    id: "q7",
-    text: "Which social media platform do you use most for news?",
-    choices: ["Facebook", "Twitter/X", "WhatsApp/Telegram", "Other"],
-    explanation: [
-      "News consumption patterns help design information campaigns and public messaging.",
-      "Aggregated data supports efforts to combat misinformation.",
-      "Researchers use platform preference to understand reach and audience demographics.",
-      "We keep individual responses private while summarizing trends.",
-    ],
-  },
-  {
-    id: "q8",
-    text: "How comfortable are you using contactless payments in small shops?",
-    choices: ["Very comfortable", "Somewhat comfortable", "Not comfortable", "I avoid them"],
-    explanation: [
-      "Merchant adoption of contactless payments depends on consumer comfort.",
-      "This helps payment providers know where to focus user education.",
-      "Understanding barriers guides investments in merchant support.",
-      "We aggregate responses to help improve payment acceptance.",
-    ],
-  },
-  {
-    id: "q9",
-    text: "Do you use any fitness or health apps daily?",
-    choices: ["Yes", "No", "Occasionally", "I used to"],
-    explanation: [
-      "App usage insights guide health product teams to build better features.",
-      "Daily habit data is useful for wellness program design.",
-      "Aggregates help researchers study health behaviors at scale.",
-      "We protect privacy by never sharing personally identifiable information.",
-    ],
-  },
-  {
-    id: "q10",
-    text: "How often do power outages affect your work or study?",
-    choices: ["Never", "Rarely", "Sometimes", "Often"],
-    explanation: [
-      "This helps utilities prioritize investments where outages cause biggest disruption.",
-      "Understanding outage frequency supports resilience planning.",
-      "Aggregated patterns inform policy decisions and emergency response.",
-      "Your responses are anonymized and used only to improve services.",
-    ],
-  },
-];
-
-// Survey Service - Ready for backend integration
+// Survey Service - Backend API integration
 class SurveyService {
-  private static readonly STORAGE_KEYS = {
-    QUESTIONS: "ps_questions_pool",
-    USERS: "ps_users",
-    CURRENT_SET: "ps_current_set",
-  };
+  private static readonly API_BASE_URL = "http://localhost:3000/api";
 
-  // TODO: Replace with actual API endpoint
-  static async fetchQuestionSet(): Promise<QuestionSet> {
+  // Fetch questions from backend
+  static async fetchQuestionSet(page: number = 1): Promise<QuestionSet> {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // For now, use localStorage. Later replace with: 
-      // const response = await fetch('/api/surveys/questions', { method: 'GET' });
-      // return response.json();
-      
-      const pool = this.getQuestionsPool();
-      const questions = this.selectRandomQuestions(pool, 5);
-      
-      return {
-        id: this.generateSetId(),
-        questions,
-        createdAt: Date.now(),
-      };
+      const response = await fetch(`${this.API_BASE_URL}/questions?page=${page}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch questions: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
     } catch (error) {
+      console.error('Fetch questions error:', error);
       throw new Error('Failed to fetch question set');
     }
   }
 
-  // TODO: Replace with actual API endpoint
-  static async submitAnswer(questionId: string, choice: string, setId: string): Promise<{ success: boolean; coinsEarned: number }> {
+  // Submit answer to backend
+  static async submitAnswer(questionId: string, choice: string): Promise<{ success: boolean; coinsEarned: number; message?: string }> {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // For now, use localStorage. Later replace with:
-      // const response = await fetch('/api/surveys/answers', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ questionId, choice, setId })
-      // });
-      // return response.json();
-      
-      const coinsEarned = 5;
-      this.recordAnswerLocally(questionId, choice);
-      return { success: true, coinsEarned };
-    } catch (error) {
-      throw new Error('Failed to submit answer');
-    }
-  }
+      const response = await fetch(`${this.API_BASE_URL}/answers/submit`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          questionId,
+          choice
+        }),
+      });
 
-  private static getQuestionsPool(): Question[] {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEYS.QUESTIONS);
-      if (stored) {
-        return JSON.parse(stored);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to submit answer: ${response.status}`);
       }
-      // Initialize with demo questions
-      localStorage.setItem(this.STORAGE_KEYS.QUESTIONS, JSON.stringify(DEMO_QUESTIONS));
-      return DEMO_QUESTIONS;
-    } catch {
-      return DEMO_QUESTIONS;
+
+      const data = await response.json();
+      return {
+        success: true,
+        coinsEarned: data.coinsEarned || 5,
+        message: data.message
+      };
+    } catch (error) {
+      console.error('Submit answer error:', error);
+      throw error;
     }
-  }
-
-  private static selectRandomQuestions(pool: Question[], count: number): Question[] {
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, pool.length));
-  }
-
-  private static generateSetId(): string {
-    return `set_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private static recordAnswerLocally(questionId: string, choice: string): void {
-    // This will be removed when backend is implemented
-    const answer: AnswerSubmission = {
-      questionId,
-      choice,
-      answeredAt: Date.now(),
-    };
-    
-    const stored = localStorage.getItem('user_answers') || '[]';
-    const answers = JSON.parse(stored);
-    answers.push(answer);
-    localStorage.setItem('user_answers', JSON.stringify(answers));
   }
 }
 
@@ -243,9 +104,9 @@ export default function SurveyFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
-  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   
   // Time tracking states
   const [questionTimings, setQuestionTimings] = useState<QuestionTiming[]>([]);
@@ -253,8 +114,6 @@ export default function SurveyFlow() {
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [timeWarningCountdown, setTimeWarningCountdown] = useState(0);
   
-  const explanationRef = useRef<HTMLDivElement | null>(null);
-  const bottomMarkerRef = useRef<HTMLDivElement | null>(null);
   const actionButtonsRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize survey on component mount
@@ -262,16 +121,9 @@ export default function SurveyFlow() {
     initializeSurvey();
   }, []);
 
-  // Setup scroll observer for current question
-  useEffect(() => {
-    const cleanup = setupScrollObserver();
-    return cleanup;
-  }, [currentQuestionIndex, questionSet]);
-
-  // Reset selection and scroll state when question changes
+  // Reset selection when question changes
   useEffect(() => {
     setSelectedChoice(null);
-    setHasScrolledToBottom(false);
     
     // Start timing for the new question
     const startTime = Date.now();
@@ -280,11 +132,12 @@ export default function SurveyFlow() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentQuestionIndex]);
 
-  const initializeSurvey = async () => {
+  const initializeSurvey = async (page: number = 1) => {
     try {
       setLoading(true);
-      const newQuestionSet = await SurveyService.fetchQuestionSet();
+      const newQuestionSet = await SurveyService.fetchQuestionSet(page);
       setQuestionSet(newQuestionSet);
+      setCurrentPage(page);
       setCurrentQuestionIndex(0);
       setAnsweredQuestions(new Set());
       setQuestionTimings([]);
@@ -299,29 +152,6 @@ export default function SurveyFlow() {
     }
   };
 
-  const setupScrollObserver = () => {
-    if (!bottomMarkerRef.current || !explanationRef.current) {
-      return () => {};
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry?.isIntersecting) {
-          setHasScrolledToBottom(true);
-        }
-      },
-      {
-        root: explanationRef.current,
-        threshold: 1.0,
-        rootMargin: '0px 0px -10px 0px'
-      }
-    );
-
-    observer.observe(bottomMarkerRef.current);
-    return () => observer.disconnect();
-  };
-
   const handleAnswerSubmission = async () => {
     if (!questionSet || !user || selectedChoice === null || !currentQuestionStartTime) {
       if (!user) {
@@ -332,12 +162,6 @@ export default function SurveyFlow() {
         toast.error("Please select an answer before confirming");
         return;
       }
-      return;
-    }
-
-    if (!hasScrolledToBottom) {
-      toast.error("Please scroll through the explanation to continue");
-      actionButtonsRef.current?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
@@ -358,8 +182,7 @@ export default function SurveyFlow() {
       setSubmitting(true);
       const result = await SurveyService.submitAnswer(
         currentQuestion.id,
-        selectedAnswer,
-        questionSet.id
+        selectedAnswer
       );
 
       if (result.success) {
@@ -367,11 +190,8 @@ export default function SurveyFlow() {
         setAnsweredQuestions(prev => new Set([...prev, currentQuestion.id]));
         setQuestionTimings(prev => [...prev, newTiming]);
         
-        // Update user balance locally (this will be handled by backend later)
-        await updateUserBalance(result.coinsEarned);
-        
         toast.success(`+${result.coinsEarned} coins earned!`, {
-          description: "Thank you for your valuable response"
+          description: result.message || "Thank you for your valuable response"
         });
 
         // Refresh auth and wallet data
@@ -383,34 +203,10 @@ export default function SurveyFlow() {
         }
       }
     } catch (error) {
-      toast.error("Failed to submit answer. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to submit answer. Please try again.");
       console.error('Answer submission error:', error);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const updateUserBalance = async (coinsEarned: number) => {
-    // TODO: Remove this when backend handles balance updates
-    try {
-      const usersData = JSON.parse(localStorage.getItem("ps_users") || "{}");
-      const userEmail = user?.email?.toLowerCase();
-      
-      if (userEmail && usersData[userEmail]) {
-        usersData[userEmail].balance = (usersData[userEmail].balance || 0) + coinsEarned;
-        usersData[userEmail].transactions = usersData[userEmail].transactions || [];
-        usersData[userEmail].transactions.push({
-          id: Math.random().toString(36).substr(2, 9),
-          type: "credit",
-          amount_coins: coinsEarned,
-          status: "completed",
-          created_at: Date.now(),
-        });
-        
-        localStorage.setItem("ps_users", JSON.stringify(usersData));
-      }
-    } catch (error) {
-      console.error('Failed to update local balance:', error);
     }
   };
 
@@ -430,7 +226,13 @@ export default function SurveyFlow() {
           setShowTimeWarning(false);
           // Auto-load new questions after countdown
           toast.success("Thank you for your patience! Loading new questions...");
-          setTimeout(initializeSurvey, 500);
+          setTimeout(() => {
+            if (questionSet?.pagination.hasNextPage) {
+              initializeSurvey(currentPage + 1);
+            } else {
+              initializeSurvey(1); // Start from page 1 again
+            }
+          }, 500);
           return 0;
         }
         return prev - 1;
@@ -444,7 +246,7 @@ export default function SurveyFlow() {
     if (currentQuestionIndex < questionSet.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      // Survey completed - check if user spent enough time
+      // Survey page completed - check if user spent enough time
       const totalTimeSpent = calculateTotalTimeSpent(questionTimings);
       const minRequiredTime = 40 * 1000; // 40 seconds in milliseconds
       
@@ -454,9 +256,15 @@ export default function SurveyFlow() {
         return;
       }
       
-      // User spent enough time - load new question set
-      toast.success("Survey set completed! Loading new questions...");
-      setTimeout(initializeSurvey, 1000);
+      // User spent enough time - load next page or start over
+      toast.success("Survey page completed! Loading new questions...");
+      setTimeout(() => {
+        if (questionSet.pagination.hasNextPage) {
+          initializeSurvey(currentPage + 1);
+        } else {
+          initializeSurvey(1); // Start from page 1 again
+        }
+      }, 1000);
     }
   };
 
@@ -490,7 +298,11 @@ export default function SurveyFlow() {
         return;
       }
       
-      initializeSurvey();
+      if (questionSet.pagination.hasNextPage) {
+        initializeSurvey(currentPage + 1);
+      } else {
+        initializeSurvey(1);
+      }
     }
   };
 
@@ -509,7 +321,7 @@ export default function SurveyFlow() {
       <div className="rounded-xl border p-8 bg-card shadow-sm">
         <div className="text-center">
           <p className="text-muted-foreground">No questions available at the moment.</p>
-          <Button onClick={initializeSurvey} className="mt-4">
+          <Button onClick={() => initializeSurvey()} className="mt-4">
             Retry Loading
           </Button>
         </div>
@@ -519,7 +331,7 @@ export default function SurveyFlow() {
 
   const currentQuestion = questionSet.questions[currentQuestionIndex];
   const isQuestionAnswered = answeredQuestions.has(currentQuestion.id);
-  const canSubmitAnswer = hasScrolledToBottom && selectedChoice !== null && !isQuestionAnswered;
+  const canSubmitAnswer = selectedChoice !== null && !isQuestionAnswered;
   const isLastQuestion = currentQuestionIndex === questionSet.questions.length - 1;
 
   return (
@@ -567,13 +379,13 @@ export default function SurveyFlow() {
             Your Voice Matters - Earn While You Share
           </h1>
           <p className="text-gray-700 mb-4">
-            Welcome to our innovative survey platform where your opinions drive positive change in Rwanda and beyond. 
-            We partner with leading organizations, government agencies, and research institutions to gather insights 
-            that shape policies, improve services, and build stronger communities.
+            Welcome to our survey platform where your opinions contribute to valuable market research and insights. 
+            We partner with leading organizations, companies, and research institutions to gather data that helps 
+            improve products, services, and decision-making processes.
           </p>
           <p className="text-gray-600 text-sm">
-            Every question you answer earns you coins that can be converted to real money. Your responses are completely 
-            anonymous and used only in aggregated form to generate actionable insights for decision makers.
+            Each question you answer earns you coins that can be converted to real money. Your responses are completely 
+            anonymous and used only in aggregated form to generate insights for our partner organizations.
           </p>
         </div>
       </div>
@@ -583,7 +395,12 @@ export default function SurveyFlow() {
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Question {currentQuestionIndex + 1} of {questionSet.questions.length}
+              Question {currentQuestionIndex + 1} of {questionSet.questions.length} 
+              {questionSet.pagination && (
+                <span className="ml-2">
+                  (Page {questionSet.pagination.currentPage} of {questionSet.pagination.totalPages})
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {isQuestionAnswered && (
@@ -611,22 +428,22 @@ export default function SurveyFlow() {
             />
           </div>
 
-          {/* Why We Ask This */}
+          {/* General Survey Purpose */}
           <div className="mb-6">
-            <h3 className="text-sm font-medium mb-3 text-gray-900">
-              Why we ask this question
-            </h3>
-            <div 
-              ref={explanationRef}
-              className="border rounded-lg bg-gray-50 p-4 max-h-[40vh] overflow-y-auto"
-            >
-              <div className="space-y-3">
-                {currentQuestion.explanation.map((paragraph, index) => (
-                  <p key={index} className="text-sm text-gray-700 leading-relaxed">
-                    {paragraph}
+            <div className="border rounded-lg bg-gray-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="text-blue-600 text-lg">📊</div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Why Your Response Matters
+                  </h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    Your responses help companies and organizations better understand consumer behavior, 
+                    market trends, and user preferences. This valuable data enables businesses to make 
+                    informed decisions, improve their products and services, and better serve their customers. 
+                    All responses are kept completely anonymous and are only used in aggregated statistical analysis.
                   </p>
-                ))}
-                <div ref={bottomMarkerRef} className="h-1 w-full" />
+                </div>
               </div>
             </div>
           </div>
@@ -663,17 +480,17 @@ export default function SurveyFlow() {
           </div>
 
           {/* Survey Impact Info */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
-              <div className="text-amber-600 text-lg">💡</div>
+              <div className="text-green-600 text-lg">💡</div>
               <div>
-                <h4 className="text-sm font-medium text-amber-800 mb-1">
+                <h4 className="text-sm font-medium text-green-800 mb-1">
                   Your Impact
                 </h4>
-                <p className="text-xs text-amber-700">
-                  By participating in our surveys, you're contributing to data-driven decisions that improve 
-                  infrastructure, services, and policies in Rwanda. Your anonymous responses help organizations 
-                  better serve communities like yours.
+                <p className="text-xs text-green-700">
+                  By participating in our surveys, you're contributing to valuable market research that helps 
+                  businesses make better decisions, improve their offerings, and create products that better 
+                  meet customer needs. Your anonymous feedback makes a real difference.
                 </p>
               </div>
             </div>
@@ -717,16 +534,13 @@ export default function SurveyFlow() {
                 onClick={handleNextQuestion}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700"
               >
-                {isLastQuestion ? "Complete Survey Set" : "Next Question"}
+                {isLastQuestion ? 
+                  (questionSet.pagination?.hasNextPage ? "Next Page" : "Complete Survey Set") : 
+                  "Next Question"
+                }
               </Button>
             )}
           </div>
-
-          {!hasScrolledToBottom && !isQuestionAnswered && (
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Please read through the explanation above to enable the submit button
-            </p>
-          )}
         </div>
       </div>
 
@@ -747,9 +561,9 @@ export default function SurveyFlow() {
             <p className="text-sm text-gray-600">Earn coins that convert to real money</p>
           </div>
           <div className="text-center">
-            <div className="text-2xl mb-2">🌍</div>
+            <div className="text-2xl mb-2">📈</div>
             <h4 className="font-medium text-gray-900 mb-1">Make Impact</h4>
-            <p className="text-sm text-gray-600">Shape policies and improve community services</p>
+            <p className="text-sm text-gray-600">Help companies improve their products and services</p>
           </div>
         </div>
       </div>

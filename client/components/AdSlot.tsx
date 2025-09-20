@@ -7,13 +7,13 @@ export function AdSlot({ id, size = "300x250", className }: { id: string; size?:
       id={id}
       aria-hidden
       className={cn(
-        "relative flex items-center justify-center border border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground/70",
+        "relative flex items-center justify-center  border-muted-foreground/30  text-muted-foreground/70",
         "rounded-md overflow-hidden",
         className,
       )}
       style={{ width: w, height: h }}
     >
-      <span className="text-[10px]">Ad {size}</span>
+      {/* <span className="text-[10px]">Ad {size}</span> */}
     </div>
   );
 }
