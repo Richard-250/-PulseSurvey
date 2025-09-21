@@ -38,7 +38,7 @@ type AnswerSubmission = {
 
 // Survey Service - Backend API integration
 class SurveyService {
-  private static readonly API_BASE_URL = "http://localhost:3000/api";
+  private static readonly API_BASE_URL = "https://pulse-survey-backend-1.onrender.com/api";
 
   // Fetch questions from backend
   static async fetchQuestionSet(page: number = 1): Promise<QuestionSet> {

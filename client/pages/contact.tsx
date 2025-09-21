@@ -140,7 +140,7 @@ export default function Contact() {
                   Check our FAQ section for quick answers to common questions.
                 </p>
                 <Button variant="outline" size="sm" className="w-full">
-                  Visit FAQ
+               <a href="/faq"> Visit FAQ</a>  
                 </Button>
               </div>
             </div>
