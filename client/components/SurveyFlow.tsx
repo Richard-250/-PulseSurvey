@@ -40,12 +40,13 @@ type AnswerSubmission = {
 // Survey Service - Backend API integration with authentication
 class SurveyService {
   private static readonly API_BASE_URL = "https://pulse-survey-backend.onrender.com/api";
+  private static readonly QUESTIONS_PER_BATCH = 10; // Fetch 10 questions at once
 
   // Fetch questions from backend with authentication
   static async fetchQuestionSet(page: number = 1): Promise<QuestionSet> {
     try {
       const response = await makeAuthenticatedRequest(
-        `${this.API_BASE_URL}/questions?page=${page}`
+        `${this.API_BASE_URL}/questions?page=${page}&limit=${this.QUESTIONS_PER_BATCH}`
       );
 
       if (!response.ok) {
@@ -122,7 +123,7 @@ class SurveyService {
       const data = await response.json();
       return {
         success: true,
-        coinsEarned: data.coinsEarned || 5, // Updated to 5 coins per question
+        coinsEarned: data.coinsEarned || 5,
         message: data.message,
         newBalance: data.newBalance
       };
@@ -166,19 +167,20 @@ export default function SurveyFlow() {
   const { refetch: refetchWallet } = useWallet(Boolean(user));
 
   const [loading, setLoading] = useState(true);
+  const [loadingNewBatch, setLoadingNewBatch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
-  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
+  const [answeredQuestions, setAnsweredQuestions] = useState<Map<string, string>>(new Map());
   
   // Time tracking states
   const [questionTimings, setQuestionTimings] = useState<QuestionTiming[]>([]);
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number | null>(null);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [timeWarningCountdown, setTimeWarningCountdown] = useState(0);
-  const [surveySetStartTime, setSurveySetStartTime] = useState<number>(Date.now()); // Track when survey set started
+  const [batchStartTime, setBatchStartTime] = useState<number>(Date.now());
   
   const actionButtonsRef = useRef<HTMLDivElement | null>(null);
 
@@ -220,8 +222,8 @@ export default function SurveyFlow() {
     const currentQuestion = questionSet.questions[currentQuestionIndex];
     try {
       const status = await SurveyService.checkAnswerStatus(currentQuestion.id);
-      if (status.hasAnswered) {
-        setAnsweredQuestions(prev => new Set([...prev, currentQuestion.id]));
+      if (status.hasAnswered && status.answer) {
+        setAnsweredQuestions(prev => new Map(prev.set(currentQuestion.id, status.answer)));
       }
     } catch (error) {
       console.warn('Failed to check answer status:', error);
@@ -241,12 +243,17 @@ export default function SurveyFlow() {
       setQuestionSet(newQuestionSet);
       setCurrentPage(page);
       setCurrentQuestionIndex(0);
-      setAnsweredQuestions(new Set());
+      setAnsweredQuestions(new Map());
       setQuestionTimings([]);
       setCurrentQuestionStartTime(Date.now());
-      setSurveySetStartTime(Date.now()); // Reset survey set start time
+      setBatchStartTime(Date.now());
       setShowTimeWarning(false);
       setTimeWarningCountdown(0);
+
+      // Check answer status for all questions in the batch
+      setTimeout(async () => {
+        await checkAllQuestionsStatus(newQuestionSet.questions);
+      }, 100);
     } catch (error) {
       if (error instanceof Error && error.message.includes('Authentication')) {
         toast.error('Your session has expired. Please log in again.');
@@ -257,6 +264,84 @@ export default function SurveyFlow() {
       console.error('Survey initialization error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkAllQuestionsStatus = async (questions: Question[]) => {
+    try {
+      const statusChecks = await Promise.allSettled(
+        questions.map(question => SurveyService.checkAnswerStatus(question.id))
+      );
+
+      const newAnsweredQuestions = new Map(answeredQuestions);
+      statusChecks.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.hasAnswered && result.value.answer) {
+          newAnsweredQuestions.set(questions[index].id, result.value.answer);
+        }
+      });
+
+      setAnsweredQuestions(newAnsweredQuestions);
+    } catch (error) {
+      console.warn('Failed to check questions status:', error);
+    }
+  };
+
+  const loadNextBatch = async () => {
+    // After completing 5 questions, always reload the page to get fresh questions
+    const answeredCount = answeredQuestions.size;
+    const minAnsweredRequired = 5;
+
+    if (answeredCount >= minAnsweredRequired) {
+      // Check if minimum time has passed (35 seconds)
+      const timeElapsed = Date.now() - batchStartTime;
+      const minRequiredTime = 35 * 1000; // 35 seconds in milliseconds
+      
+      if (timeElapsed < minRequiredTime) {
+        const remainingTime = Math.ceil((minRequiredTime - timeElapsed) / 1000);
+        showTimeWarningModal(remainingTime);
+        return;
+      }
+
+      // User has completed the minimum requirements, reload page for fresh questions
+      toast.success("Great job! You've completed this question set. Loading fresh questions...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+      return;
+    }
+
+    // If user hasn't answered enough questions yet, continue with current batch or load next page
+    if (!questionSet?.pagination?.hasNextPage) {
+      // No more questions available, restart from beginning
+      toast.success("Great job! Starting fresh with new questions...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      return;
+    }
+
+    try {
+      setLoadingNewBatch(true);
+      const nextPage = currentPage + 1;
+      const newQuestionSet = await SurveyService.fetchQuestionSet(nextPage);
+      
+      setQuestionSet(newQuestionSet);
+      setCurrentPage(nextPage);
+      setCurrentQuestionIndex(0);
+      setQuestionTimings([]);
+      setBatchStartTime(Date.now());
+
+      // Check answer status for new batch
+      setTimeout(async () => {
+        await checkAllQuestionsStatus(newQuestionSet.questions);
+      }, 100);
+
+      toast.success(`Loaded ${newQuestionSet.questions.length} new questions!`);
+    } catch (error) {
+      toast.error('Failed to load new questions');
+      console.error('Load next batch error:', error);
+    } finally {
+      setLoadingNewBatch(false);
     }
   };
 
@@ -301,7 +386,7 @@ export default function SurveyFlow() {
 
       if (result.success) {
         // Update local state
-        setAnsweredQuestions(prev => new Set([...prev, currentQuestion.id]));
+        setAnsweredQuestions(prev => new Map(prev.set(currentQuestion.id, selectedAnswer)));
         setQuestionTimings(prev => [...prev, newTiming]);
         
         toast.success(`+${result.coinsEarned} coins earned!`, {
@@ -317,8 +402,8 @@ export default function SurveyFlow() {
 
         // Automatically move to next question after successful submission
         setTimeout(() => {
-          moveToNextQuestion();
-        }, 1500); // Give user time to see the success message
+          handleNextQuestion();
+        }, 1500);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -337,10 +422,6 @@ export default function SurveyFlow() {
     }
   };
 
-  const calculateTotalTimeSpent = (timings: QuestionTiming[]): number => {
-    return timings.reduce((total, timing) => total + (timing.duration || 0), 0);
-  };
-
   const showTimeWarningModal = (additionalTimeNeeded: number) => {
     setTimeWarningCountdown(additionalTimeNeeded);
     setShowTimeWarning(true);
@@ -351,10 +432,10 @@ export default function SurveyFlow() {
         if (prev <= 1) {
           clearInterval(interval);
           setShowTimeWarning(false);
-          // Auto-reload page after countdown to load new questions
-          toast.success("Thank you for your patience! Loading new questions...");
+          // Auto-reload page after countdown to get fresh questions
+          toast.success("Thank you for your patience! Loading fresh questions...");
           setTimeout(() => {
-            window.location.reload(); // Reload the entire page
+            window.location.reload();
           }, 500);
           return 0;
         }
@@ -363,46 +444,20 @@ export default function SurveyFlow() {
     }, 1000);
   };
 
-  // Move to next question or page
-  const moveToNextQuestion = () => {
-    if (!questionSet) return;
-
-    if (currentQuestionIndex < questionSet.questions.length - 1) {
-      // Move to next question in current set
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      // End of current question set - check if we've answered at least 5 questions
-      const answeredCount = answeredQuestions.size;
-      if (answeredCount >= 5) {
-        // Check if 35 seconds have passed since survey set started
-        const timeElapsed = Date.now() - surveySetStartTime;
-        const minRequiredTime = 35 * 1000; // 35 seconds in milliseconds
-        
-        if (timeElapsed < minRequiredTime) {
-          const remainingTime = Math.ceil((minRequiredTime - timeElapsed) / 1000);
-          showTimeWarningModal(remainingTime);
-          return;
-        }
-      }
-      
-      // Load next page or restart - reload the page
-      toast.success("Great job! Loading next set of questions...");
-      setTimeout(() => {
-        window.location.reload(); // Reload the entire page
-      }, 1000);
-    }
-  };
-
   const handleNextQuestion = () => {
     if (!questionSet) return;
 
     if (currentQuestionIndex < questionSet.questions.length - 1) {
+      // Move to next question in current batch
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      // Survey page completed - check if we've answered at least 5 questions and time requirement
+      // End of current batch - check if user has answered at least 5 questions
       const answeredCount = answeredQuestions.size;
-      if (answeredCount >= 5) {
-        const timeElapsed = Date.now() - surveySetStartTime;
+      const minAnsweredRequired = 5;
+
+      if (answeredCount >= minAnsweredRequired) {
+        // Check if minimum time has passed (35 seconds)
+        const timeElapsed = Date.now() - batchStartTime;
         const minRequiredTime = 35 * 1000; // 35 seconds in milliseconds
         
         if (timeElapsed < minRequiredTime) {
@@ -410,10 +465,16 @@ export default function SurveyFlow() {
           showTimeWarningModal(remainingTime);
           return;
         }
+
+        // User has met all requirements - reload page for fresh questions
+        toast.success("Excellent! You've completed this set. Reloading with fresh questions...");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        // User hasn't answered enough questions yet
+        toast.error(`Please answer at least ${minAnsweredRequired} questions before proceeding to the next set.`);
       }
-      
-      // User met requirements - reload page for next set
-      moveToNextQuestion();
     }
   };
 
@@ -434,12 +495,12 @@ export default function SurveyFlow() {
     
     setQuestionTimings(prev => [...prev, skippedTiming]);
 
-    // Just move to next question without time validation for skips
+    // Move to next question
     if (currentQuestionIndex < questionSet.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      // End of question set - move to next page or restart
-      moveToNextQuestion();
+      // End of batch
+      loadNextBatch();
     }
   };
 
@@ -504,6 +565,9 @@ export default function SurveyFlow() {
   const isQuestionAnswered = answeredQuestions.has(currentQuestion.id);
   const canSubmitAnswer = selectedChoice !== null && !isQuestionAnswered;
   const isLastQuestion = currentQuestionIndex === questionSet.questions.length - 1;
+  const answeredInBatch = Array.from(answeredQuestions.keys()).filter(id => 
+    questionSet.questions.some(q => q.id === id)
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -521,7 +585,7 @@ export default function SurveyFlow() {
                 Please Take Your Time
               </h3>
               <p className="text-gray-600 text-sm mb-4">
-                To ensure quality responses and prevent rushing, we require at least 35 seconds total time for each set of 5 questions. 
+                To ensure quality responses and prevent rushing, we require at least 35 seconds total time for each batch of questions. 
                 This helps us maintain the integrity of our survey data.
               </p>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
@@ -539,6 +603,16 @@ export default function SurveyFlow() {
                 Thank you for your patience. This ensures better survey quality for everyone.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading New Batch Overlay */}
+      {loadingNewBatch && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-40">
+          <div className="bg-white rounded-xl shadow-xl p-6 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="text-gray-700">Loading new questions...</span>
           </div>
         </div>
       )}
@@ -580,17 +654,38 @@ export default function SurveyFlow() {
         </div>
       </div>
 
+      {/* Batch Progress */}
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-gray-900">
+            Current Batch Progress
+          </h3>
+          <span className="text-xs text-gray-500">
+            Batch {currentPage} • {questionSet.questions.length} questions loaded
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>Answered: {answeredInBatch}</span>
+          <span>•</span>
+          <span>Remaining: {questionSet.questions.length - answeredInBatch}</span>
+          {questionSet.pagination?.hasNextPage && (
+            <>
+              <span>•</span>
+              <span className="text-blue-600">More questions available</span>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Question Card */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Question {currentQuestionIndex + 1} of {questionSet.questions.length} 
-              {questionSet.pagination && (
-                <span className="ml-2">
-                  (Page {questionSet.pagination.currentPage} of {questionSet.pagination.totalPages})
-                </span>
-              )}
+              Question {currentQuestionIndex + 1} of {questionSet.questions.length}
+              <span className="ml-2 text-blue-600">
+                (Batch {questionSet.pagination?.currentPage || currentPage})
+              </span>
             </div>
             <div className="flex items-center gap-2">
               {isQuestionAnswered && (
@@ -608,7 +703,7 @@ export default function SurveyFlow() {
             {currentQuestion.text}
           </h2>
 
-          {/* Progress Bar */}
+          {/* Progress Bar - for current batch */}
           <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
             <div 
               className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-300"
@@ -644,28 +739,40 @@ export default function SurveyFlow() {
               Choose the option that best describes your situation
             </h3>
             <div className="grid gap-3">
-              {currentQuestion.choices.map((choice, index) => (
-                <label
-                  key={index}
-                  className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition-all hover:bg-gray-50 ${
-                    selectedChoice === index
-                      ? 'ring-2 ring-blue-500 bg-blue-50 border-blue-200'
-                      : 'border-gray-200'
-                  } ${isQuestionAnswered ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name={`choice-${currentQuestion.id}`}
-                    checked={selectedChoice === index}
-                    onChange={() => !isQuestionAnswered && setSelectedChoice(index)}
-                    disabled={isQuestionAnswered}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-900">
-                    {choice}
-                  </span>
-                </label>
-              ))}
+              {currentQuestion.choices.map((choice, index) => {
+                const isSelected = selectedChoice === index;
+                const isAlreadyAnswered = isQuestionAnswered && answeredQuestions.get(currentQuestion.id) === choice;
+                
+                return (
+                  <label
+                    key={index}
+                    className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition-all hover:bg-gray-50 ${
+                      isSelected
+                        ? 'ring-2 ring-blue-500 bg-blue-50 border-blue-200'
+                        : isAlreadyAnswered
+                        ? 'ring-2 ring-green-500 bg-green-50 border-green-200'
+                        : 'border-gray-200'
+                    } ${isQuestionAnswered ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name={`choice-${currentQuestion.id}`}
+                      checked={isSelected || isAlreadyAnswered}
+                      onChange={() => !isQuestionAnswered && setSelectedChoice(index)}
+                      disabled={isQuestionAnswered}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-900">
+                      {choice}
+                    </span>
+                    {isAlreadyAnswered && (
+                      <span className="ml-auto text-xs text-green-600 font-medium">
+                        ✓ Selected
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -694,7 +801,8 @@ export default function SurveyFlow() {
         >
           <div className="flex items-center justify-between mb-3 text-xs text-gray-600">
             <div>
-              {isQuestionAnswered ? "Answer submitted" : "Not answered yet"}
+              {isQuestionAnswered ? "Answer submitted" : "Not answered yet"} • 
+              Batch progress: {answeredInBatch}/{questionSet.questions.length}
             </div>
             <div>
               Balance: {user.balance || 0} coins (~{convertCoinsToRWF(user.balance || 0).toLocaleString()} RWF)
@@ -706,7 +814,7 @@ export default function SurveyFlow() {
               variant="outline"
               onClick={handleSkipQuestion}
               className="text-sm"
-              disabled={submitting}
+              disabled={submitting || loadingNewBatch}
             >
               Skip (no reward)
             </Button>
@@ -714,7 +822,7 @@ export default function SurveyFlow() {
             {!isQuestionAnswered ? (
               <Button
                 onClick={handleAnswerSubmission}
-                disabled={!canSubmitAnswer || submitting}
+                disabled={!canSubmitAnswer || submitting || loadingNewBatch}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all"
               >
                 {submitting ? "Submitting..." : "Submit & Earn 5 Coins (3 RWF)"}
@@ -722,12 +830,11 @@ export default function SurveyFlow() {
             ) : (
               <Button
                 onClick={handleNextQuestion}
+                disabled={loadingNewBatch}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700"
               >
-                {isLastQuestion ? 
-                  (questionSet.pagination?.hasNextPage ? "Next Page" : "Complete Survey Set") : 
-                  "Next Question"
-                }
+                {loadingNewBatch ? "Loading..." : 
+                 isLastQuestion ? "Complete Batch & Load New Questions" : "Next Question"}
               </Button>
             )}
           </div>

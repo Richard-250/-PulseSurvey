@@ -75,7 +75,7 @@ export default function Dashboard() {
 
     setLoading(true);
     try {
-      const response = await makeAuthenticatedRequest('http://localhost:3001/api/auth/profile/phone', {
+      const response = await makeAuthenticatedRequest('https://pulse-survey-backend.onrender.com/api/auth/profile/phone', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
