@@ -19,6 +19,7 @@ export default function AboutUs() {
               About PulseSurvey
             </Badge>
             <h1 className="text-3xl md:text-4xl font-bold mb-6">About PulseSurvey</h1>
+            <div id="container-28d985c53d47771c95adb86795d9143f"></div>
             <p className="text-muted-foreground text-lg mb-6">
               PulseSurvey is a free platform where you can earn by taking fun and easy surveys. Your answers 
               help companies improve their products and services. No skills or experience needed—just 
@@ -256,6 +257,7 @@ export default function AboutUs() {
           <p className="text-xs mt-4 opacity-75">
             Free to join • No experience required • Instant MTN payouts
           </p>
+          <div id="container-28d985c53d47771c95adb86795d9143f"></div>
         </div>
       </section>
     </Layout>

@@ -13,6 +13,7 @@ export function AdSlot({ id, size = "300x250", className }: { id: string; size?:
       )}
       style={{ width: w, height: h }}
     >
+      <div id="container-28d985c53d47771c95adb86795d9143f"></div>
       {/* <span className="text-[10px]">Ad {size}</span> */}
     </div>
   );

@@ -5,6 +5,7 @@ export default function Footer() {
     <footer className="border-t mt-10">
       <div className="mx-auto max-w-[1200px] px-4 py-8 grid gap-6 md:grid-cols-3 text-sm">
         <div>
+          <div id="container-28d985c53d47771c95adb86795d9143f"></div>
           <div className="font-semibold mb-2">PulseSurvey</div>
           <p className="text-muted-foreground">Answer real-life questions. Earn coins. Cash out via MTN P2P.</p>
         </div>

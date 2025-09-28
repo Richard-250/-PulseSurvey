@@ -33,6 +33,7 @@ export default function AboutSurveys() {
           <h1 className="text-3xl md:text-4xl font-bold mb-6">
             PulseSurvey — an easy way to make money from home
           </h1>
+          <div id="container-28d985c53d47771c95adb86795d9143f"></div>
           <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
             Whether you're a stay-at-home parent, a student, or simply wish to make money from home, you're 
             at the right place. PulseSurvey gives you the opportunity to increase your income effortlessly with paid 
