@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import Layout from "@/components/layout/Layout";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet, requestPayout } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { makeAuthenticatedRequest } from "@/hooks/useAuth";
 import { Edit2, Check, X, AlertCircle, Clock, CheckCircle } from "lucide-react";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = "https://pulse-survey-backend.onrender.com/api";
 
 export default function Wallet() {
   const { user, refetch: refetchAuth } = useAuth();
   const { balance, pending, transactions, settings, isLoading, refetch } = useWallet(Boolean(user));
+  
   const [coins, setCoins] = useState(30);
   const [mtn, setMtn] = useState("");
   const [isEditingMtn, setIsEditingMtn] = useState(false);
@@ -32,10 +34,10 @@ export default function Wallet() {
     if (transactions && transactions.length > 0) {
       const lastPayoutRequest = transactions
         .filter((tx: any) => tx.type === 'payout_request')
-        .sort((a: any, b: any) => b.created_at - a.created_at)[0];
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       
       if (lastPayoutRequest) {
-        setLastWithdrawal(lastPayoutRequest.created_at);
+        setLastWithdrawal(new Date(lastPayoutRequest.created_at).getTime());
       }
     }
   }, [transactions]);
@@ -60,12 +62,8 @@ export default function Wallet() {
     
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/update-profile`, {
+      const response = await makeAuthenticatedRequest(`${API_BASE_URL}/auth/profile/phone`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           mtn_mobile_number: tempMtn.trim()
         }),
@@ -92,7 +90,7 @@ export default function Wallet() {
     setIsEditingMtn(false);
   }
 
-  async function requestPayout() {
+  async function requestPayoutAction() {
     if (!user) return toast.error("Please log in to request a withdrawal");
     
     // Validation checks
@@ -113,29 +111,13 @@ export default function Wallet() {
       return toast.error("Please set your MTN mobile number first");
     }
     
-    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/payout/request`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount_coins: coins,
-          mtn_number: mtn
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to request payout');
-      }
+      setLoading(true);
+      const result = await requestPayout(coins, mtn);
       
       setLastWithdrawal(Date.now());
       setCoins(30); // Reset to minimum
-      toast.success(data.message || "Withdrawal requested successfully");
+      toast.success(result.message || "Withdrawal requested successfully!");
       
       // Refresh data
       await refetch();
@@ -155,6 +137,8 @@ export default function Wallet() {
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case "failed":
         return <X className="w-4 h-4 text-red-500" />;
+      case "cancelled":
+        return <X className="w-4 h-4 text-gray-500" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-500" />;
     }
@@ -168,13 +152,16 @@ export default function Wallet() {
         return "Completed";
       case "failed":
         return "Failed";
+      case "cancelled":
+        return "Cancelled";
       default:
         return "Unknown";
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
+  const formatDate = (timestamp: string | number) => {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -202,6 +189,37 @@ export default function Wallet() {
     return type === 'credit' ? '+' : '-';
   };
 
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <Layout>
+        <div className="mx-auto max-w-4xl">
+          <div className="rounded-xl border p-8 bg-card shadow-sm text-center">
+            <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Please Log In
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              You need to be logged in to view your wallet and manage withdrawals.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => window.location.href = '/login'}>
+                Log In
+              </Button>
+              <Button variant="outline" onClick={() => window.location.href = '/signup'}>
+                Sign Up
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="mx-auto max-w-4xl space-y-6">
@@ -224,9 +242,9 @@ export default function Wallet() {
             <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">
               {isLoading ? "..." : balance ?? 0} coins
             </div>
-            <div className="text-sm text-muted-foreground mt-2">
-              ≈ {((balance ?? 0) * (settings?.coin_to_currency ?? 2)).toLocaleString()} RWF
-            </div>
+         <div className="text-sm text-muted-foreground mt-2">
+          ≈ {Math.floor(((balance ?? 0) * 3) / 5).toLocaleString()} RWF
+         </div>
             <div className="text-sm text-muted-foreground mt-1">
               Pending: <span className="font-medium text-yellow-600">{pending ?? 0} coins</span>
             </div>
@@ -343,7 +361,7 @@ export default function Wallet() {
             )}
             
             <Button
-              onClick={requestPayout}
+              onClick={requestPayoutAction}
               disabled={loading || !canWithdrawToday() || !mtn.trim() || coins < (settings?.min_withdraw_coins ?? 30) || (balance ?? 0) < coins}
               className="w-full text-lg h-12"
             >

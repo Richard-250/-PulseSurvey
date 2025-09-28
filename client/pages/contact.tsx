@@ -20,25 +20,26 @@ export default function Contact() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitStatus('idle');
+ // Update the handleSubmit function in your contact form component
 
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Here you would typically make an API call to your backend
-      // const response = await fetch('/api/contact', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(formData)
-      // });
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+  setSubmitStatus('idle');
 
-      console.log('Contact form submitted:', formData);
+  try {
+    const response = await fetch('https://pulse-survey-backend.onrender.com/api/contact', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData)
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
       setSubmitStatus('success');
-      
       // Reset form after successful submission
       setFormData({
         email: "",
@@ -46,13 +47,16 @@ export default function Contact() {
         message: "",
         category: "general"
       });
-    } catch (error) {
-      console.error('Contact form error:', error);
+    } else {
       setSubmitStatus('error');
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  } catch (error) {
+    console.error('Contact form error:', error);
+    setSubmitStatus('error');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const categories = [
     { value: "general", label: "General Inquiry" },
@@ -97,7 +101,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-medium text-base sm:text-lg">Email Support</h3>
-                    <p className="text-sm text-muted-foreground break-all">support@pulsesurvey.rw</p>
+                    <p className="text-sm text-muted-foreground break-all">poprich@gmail.com</p>
                     <p className="text-xs text-muted-foreground mt-1">We typically reply within 24 hours</p>
                   </div>
                 </div>
@@ -112,7 +116,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-medium text-base sm:text-lg">WhatsApp</h3>
-                    <p className="text-sm text-muted-foreground">+250 792 525 910</p>
+                    <p className="text-sm text-muted-foreground">+250 791 762 918</p>
                     <p className="text-xs text-muted-foreground mt-1">Quick responses during business hours</p>
                   </div>
                 </div>

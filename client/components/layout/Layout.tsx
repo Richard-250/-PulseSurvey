@@ -45,7 +45,7 @@ export default function Layout({ children, showAds = true }: { children: React.R
 function WhatsAppButton() {
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const phoneNumber = "0791762918";
+  const phoneNumber = "+250 791 762 918";
   const message = "Hello! I'm interested in PulseSurvey. Can you help me?";
 
   useEffect(() => {
@@ -54,10 +54,133 @@ function WhatsAppButton() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleWhatsAppClick = () => {
+  const handleWhatsAppClick = async () => {
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+    
+    // Try native app URLs first
+    const nativeUrls = [
+      `whatsapp://send?phone=${cleanPhoneNumber}&text=${encodedMessage}`, // Mobile app
+      `whatsapp://send/?phone=${cleanPhoneNumber}&text=${encodedMessage}`, // Alternative mobile format
+      `whatsapp-desktop://send?phone=${cleanPhoneNumber}&text=${encodedMessage}`, // Desktop app (Windows/Mac)
+    ];
+    
+    // Web fallback URL
+    const webUrl = `https://wa.me/${cleanPhoneNumber}?text=${encodedMessage}`;
+    
+    // Function to attempt opening a URL
+    const tryOpenUrl = (url: string): Promise<boolean> => {
+      return new Promise((resolve) => {
+        // Create a hidden iframe to test if the protocol is supported
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        
+        // Set a timeout to check if the app opened
+        const timeout = setTimeout(() => {
+          document.body.removeChild(iframe);
+          resolve(false);
+        }, 2000);
+        
+        // If we're still here after a short time, the app likely didn't open
+        setTimeout(() => {
+          clearTimeout(timeout);
+          document.body.removeChild(iframe);
+          resolve(false);
+        }, 500);
+        
+        // For better browser support, also try window.location
+        try {
+          const newWindow = window.open(url, '_blank');
+          if (!newWindow) {
+            resolve(false);
+            return;
+          }
+          
+          // Check if the window was closed (indicating app opened)
+          setTimeout(() => {
+            try {
+              if (newWindow.closed) {
+                clearTimeout(timeout);
+                resolve(true);
+              } else {
+                newWindow.close();
+                resolve(false);
+              }
+            } catch (e) {
+              // Cross-origin error means app likely opened
+              clearTimeout(timeout);
+              resolve(true);
+            }
+          }, 100);
+        } catch (e) {
+          resolve(false);
+        }
+      });
+    };
+    
+    // Enhanced method for mobile devices
+    const tryNativeApp = async (): Promise<boolean> => {
+      // Detect if it's a mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // For mobile, try the primary WhatsApp URL
+        try {
+          const startTime = Date.now();
+          window.location.href = nativeUrls[0];
+          
+          // If we're still here after 2 seconds, app probably didn't open
+          return new Promise((resolve) => {
+            const checkTime = setTimeout(() => {
+              const timeElapsed = Date.now() - startTime;
+              resolve(timeElapsed > 2000);
+            }, 2500);
+            
+            // Listen for page visibility change (app opening changes visibility)
+            const handleVisibilityChange = () => {
+              if (document.hidden) {
+                clearTimeout(checkTime);
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+                resolve(true);
+              }
+            };
+            
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            
+            // Also listen for blur event (when user switches to app)
+            const handleBlur = () => {
+              clearTimeout(checkTime);
+              window.removeEventListener('blur', handleBlur);
+              document.removeEventListener('visibilitychange', handleVisibilityChange);
+              resolve(true);
+            };
+            
+            window.addEventListener('blur', handleBlur);
+          });
+        } catch (e) {
+          return false;
+        }
+      } else {
+        // For desktop, try desktop app URLs
+        for (const url of nativeUrls.slice(2)) {
+          const success = await tryOpenUrl(url);
+          if (success) return true;
+        }
+        return false;
+      }
+    };
+    
+    // Try to open native app first
+    const nativeSuccess = await tryNativeApp();
+    
+    // If native app didn't open, fall back to web URL
+    if (!nativeSuccess) {
+      setTimeout(() => {
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 100);
+    }
   };
 
   if (!isVisible) return null;

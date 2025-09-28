@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { makeAuthenticatedRequest } from "./useAuth";
 
-const API_BASE_URL = "https://pulse-survey-backend-1.onrender.com/api";
+const API_BASE_URL = "https://pulse-survey-backend.onrender.com/api";
 
 export function useWallet(enabled: boolean = true) {
   const { data, isLoading, refetch } = useQuery({
@@ -37,28 +37,28 @@ export function useWallet(enabled: boolean = true) {
         const userData = await userResponse.json();
 
         // Fetch transaction history
-        const transactionsResponse = await makeAuthenticatedRequest(
-          `${API_BASE_URL}/payout/transactions?limit=50`
-        );
+        // const transactionsResponse = await makeAuthenticatedRequest(
+        //   `${API_BASE_URL}/payout/transactions?limit=50`
+        // );
 
         let transactions = [];
         let pendingAmount = 0;
 
-        if (transactionsResponse.ok) {
-          const transactionData = await transactionsResponse.json();
-          transactions = transactionData.transactions || [];
+        // if (transactionsResponse.ok) {
+        //   const transactionData = await transactionsResponse.json();
+        //   transactions = transactionData.transactions || [];
           
-          // Calculate pending amount from pending transactions
-          pendingAmount = transactions
-            .filter((tx: any) => tx.status === 'pending' && tx.type === 'payout_request')
-            .reduce((sum: number, tx: any) => sum + (tx.amount_coins || 0), 0);
-        } else if (transactionsResponse.status === 401) {
-          // Handle auth error for transactions
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user_data');
-          window.location.href = '/login';
-          return;
-        }
+        //   // Calculate pending amount from pending transactions
+        //   pendingAmount = transactions
+        //     .filter((tx: any) => tx.status === 'pending' && tx.type === 'payout_request')
+        //     .reduce((sum: number, tx: any) => sum + (tx.amount_coins || 0), 0);
+        // } else if (transactionsResponse.status === 401) {
+        //   // Handle auth error for transactions
+        //   localStorage.removeItem('auth_token');
+        //   localStorage.removeItem('user_data');
+        //   window.location.href = '/login';
+        //   return;
+        // }
 
         return {
           balance: userData.balance || 0,

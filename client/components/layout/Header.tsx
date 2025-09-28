@@ -61,7 +61,9 @@ export default function Header() {
                   <div className="h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center text-black font-semibold">{initials(user.display_name || user.email)}</div>
                   <div className="flex flex-col text-xs leading-tight text-right">
                     {/* <span className="font-medium">{user.display_name || user.email}</span> */}
-                    <span className="text-muted-foreground">{isLoading ? "…" : `${balance ?? 0} coins`} • {(Math.round(((balance ?? 0) * 2) * 100) / 100) ?? 0} RWF</span>
+               <span className="text-muted-foreground">
+                   {isLoading ? "…" : `${balance ?? 0} coins`} • {(Math.round(((balance ?? 0) * 3 / 5) * 100) / 100) ?? 0} RWF
+                </span>
                   </div>
                 </button>
                 <Button variant="outline" className="text-sm hidden sm:inline-flex" onClick={() => navigate("/wallet")}>Wallet</Button>

@@ -8,6 +8,7 @@ type User = {
   mtn_mobile_number?: string | null;
   is_email_verified?: boolean;
   balance?: number;
+  last_withdrawal_date?: string;
 };
 
 type AuthContextType = {
@@ -23,12 +24,17 @@ type AuthContextType = {
   login: (input: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
+  updateProfile: (input: {
+    display_name?: string;
+    country?: string;
+    mtn_mobile_number?: string;
+  }) => Promise<void>;
   token: string | null;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE_URL = "https://pulse-survey-backend-1.onrender.com/api/auth";
+const API_BASE_URL = "https://pulse-survey-backend.onrender.com/api/auth";
 
 // Token management utilities
 const TOKEN_KEY = 'auth_token';
@@ -59,6 +65,15 @@ const removeStoredToken = (): void => {
   }
 };
 
+const getStoredUser = (): User | null => {
+  try {
+    const userData = localStorage.getItem(USER_KEY);
+    return userData ? JSON.parse(userData) : null;
+  } catch {
+    return null;
+  }
+};
+
 const setStoredUser = (user: User): void => {
   try {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -67,11 +82,11 @@ const setStoredUser = (user: User): void => {
   }
 };
 
-// API request helper with token
+// API request helper with token and better error handling
 const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
   const token = getStoredToken();
   
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers: {
       ...options.headers,
@@ -79,6 +94,15 @@ const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) 
       ...(token && { 'Authorization': `Bearer ${token}` }),
     },
   });
+
+  // Handle specific error cases
+  if (response.status === 401) {
+    // Token is invalid or expired
+    removeStoredToken();
+    throw new Error('Authentication failed. Please log in again.');
+  }
+
+  return response;
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -93,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function initializeAuth() {
     const storedToken = getStoredToken();
+    const storedUser = getStoredUser();
     
     if (!storedToken) {
       setLoading(false);
@@ -100,6 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setToken(storedToken);
+    
+    // Set stored user immediately for better UX, then verify with server
+    if (storedUser) {
+      setUser(storedUser);
+    }
+
     await checkAuthStatus();
   }
 
@@ -130,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function refetch() {
+    setLoading(true);
     await checkAuthStatus();
   }
 
@@ -147,17 +179,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: input.email,
+          email: input.email.trim().toLowerCase(),
           password: input.password,
-          display_name: input.display_name,
-          country: input.country || '',
-          mtn_mobile_number: input.mtn_mobile_number || ''
+          display_name: input.display_name.trim(),
+          country: input.country?.trim() || '',
+          mtn_mobile_number: input.mtn_mobile_number?.trim() || ''
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle specific error codes from backend
+        if (data.code === 'USER_EXISTS') {
+          throw new Error('An account with this email already exists');
+        }
+        if (data.code === 'MISSING_REQUIRED_FIELDS') {
+          throw new Error('Please fill in all required fields');
+        }
         throw new Error(data.error || 'Registration failed');
       }
 
@@ -180,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: input.email,
+          email: input.email.trim().toLowerCase(),
           password: input.password,
         }),
       });
@@ -188,6 +227,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle specific error codes from backend
+        if (data.code === 'INVALID_CREDENTIALS') {
+          throw new Error('Invalid email or password');
+        }
+        if (data.code === 'MISSING_CREDENTIALS') {
+          throw new Error('Please enter both email and password');
+        }
         throw new Error(data.error || 'Login failed');
       }
 
@@ -219,8 +265,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function updateProfile(input: {
+    display_name?: string;
+    country?: string;
+    mtn_mobile_number?: string;
+  }) {
+    try {
+      const response = await makeAuthenticatedRequest(`${API_BASE_URL}/update-profile`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          display_name: input.display_name?.trim(),
+          country: input.country?.trim(),
+          mtn_mobile_number: input.mtn_mobile_number?.trim()
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Profile update failed');
+      }
+
+      // Update local state
+      setUser(data.user);
+      setStoredUser(data.user);
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw error;
+    }
+  }
+
   const value = useMemo(
-    () => ({ user, loading, signup, login, logout, refetch, token }),
+    () => ({ user, loading, signup, login, logout, refetch, updateProfile, token }),
     [user, loading, token],
   );
 
