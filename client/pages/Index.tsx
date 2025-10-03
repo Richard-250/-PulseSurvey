@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Users, Smartphone, Coins, CheckCircle, Star, Zap, Shield } from "lucide-react";
+// import { AdSlot } from "@/components/AdSlot";
 
 export default function Index() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function Index() {
   return (
     <Layout>
       {/* Hero Section */}
+       {/* <AdSlot id="ad-top-banne" size="728x90" adKey="28d985c53d47771c95adb86795d9143f" /> */}
       <section className="text-center md:text-left">
         <div className="mx-auto max-w-3xl">
           <Badge variant="secondary" className="mb-4">
@@ -26,7 +28,7 @@ export default function Index() {
             Join thousands turning everyday insights into rewards. One tap per question. Earn from your answers. 
           </p>
           <div className="mt-6 flex items-center justify-center md:justify-start gap-3">
-            {user ? (
+            {user ? ( 
               <>
                 <Button asChild className="bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:from-amber-500/90 hover:to-amber-600/90">
                   <Link to="/survey">Start answering</Link>
@@ -49,6 +51,8 @@ export default function Index() {
         </div>
       </section>
 
+      
+
      {/* <section className="mt-10">{user ? <SurveyCard /> : <HomeExplainers />}</section> */}
 
       {/* How to earn money section */}
@@ -69,6 +73,7 @@ export default function Index() {
               </p>
             </CardContent>
           </Card>
+          
           <Card className="text-center p-6">
             <CardContent className="pt-6">
               <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-green-400 to-green-600 mb-4 flex items-center justify-center">

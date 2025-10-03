@@ -18,8 +18,12 @@ export default function AboutUs() {
               <Heart className="w-4 h-4 mr-2" />
               About PulseSurvey
             </Badge>
-            <h1 className="text-3xl md:text-4xl font-bold mb-6">About PulseSurvey</h1>
+            <div className="text-green-500 text-xl pl-5">
+             <Link to='https://www.revenuecpmgate.com/mpxhs11h0?key=9f2ac2e755784df01a9a00e14e74235a'>Earn</Link>
+            </div>
             <div id="container-28d985c53d47771c95adb86795d9143f"></div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-6">About PulseSurvey</h1>
+           
             <p className="text-muted-foreground text-lg mb-6">
               PulseSurvey is a free platform where you can earn by taking fun and easy surveys. Your answers 
               help companies improve their products and services. No skills or experience needed—just 

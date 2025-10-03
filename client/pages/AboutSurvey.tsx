@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { AdSlot } from "@/components/AdSlot";
 import { 
   MessageSquare, 
   Clock, 
@@ -22,8 +23,10 @@ import {
 export default function AboutSurveys() {
     const { user } = useAuth();
   return (
+    
     <Layout>
       {/* Hero Section */}
+       <AdSlot id="ad-top-banner" size="728x90" adKey="3c58265904ccbe16932fa2180466ce4e" />
       <section className="mx-auto max-w-4xl mb-12">
         <div className="text-center mb-8">
           <Badge variant="secondary" className="mb-4">

@@ -11,9 +11,10 @@ export default function Layout({ children, showAds = true }: { children: React.R
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(640px,760px)_1fr] gap-4">
           {showAds ? (
             <aside className="hidden lg:flex flex-col items-center gap-4 py-6">
-              <AdSlot id="ad-left-1" />
-              <AdSlot id="ad-left-2" size="160x600" />
-              <AdSlot id="ad-left-3" />
+          {/* <AdSlot id="ad-top-banner" size="728x90" adKey="3c58265904ccbe16932fa2180466ce4e" /> */}
+          {/* <AdSlot id="ad-left-1" size="160x600" adKey="3c58265904ccbe16932fa2180466ce4e" />
+          <AdSlot id="ad-right-1" size="160x600" adKey="3c58265904ccbe16932fa2180466ce4e" /> */}
+
               <AdSlot id="ad-left-4" />
               <AdSlot id="ad-left-5" size="160x600" />
             </aside>
